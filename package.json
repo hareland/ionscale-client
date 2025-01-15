@@ -1,0 +1,64 @@
+{
+  "name": "ionscale-client",
+  "version": "1.0.1",
+  "description": "TypeScript client for the ionscale (https://github.com/jsiebens/ionscale) admin RPC API",
+  "type": "module",
+  "license": "MIT",
+  "packageManager": "pnpm@12.4.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": "https://github.com/hareland/ionscale-client",
+  "publishConfig": {
+    "main": "./dist/index.cjs",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/index.d.mts",
+          "default": "./dist/index.mjs"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
+      }
+    }
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "unbuild",
+    "dev": "unbuild --watch",
+    "prepack": "unbuild",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "release": "release-it"
+  },
+  "dependencies": {
+    "bs58": "^6.0.0",
+    "ofetch": "^1.5.1",
+    "tweetnacl": "^1.0.3",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.24.0",
+    "@types/node": "^22.14.0",
+    "eslint": "^9.24.0",
+    "release-it": "^21.1.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.29.1",
+    "unbuild": "^3.6.1",
+    "vitest": "^3.0.9"
+  }
+}

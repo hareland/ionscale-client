@@ -1,0 +1,107 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      increment:
+        description: "Version increment"
+        required: true
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+          - prepatch
+          - preminor
+          - premajor
+          - prerelease
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  version:
+    name: Bump version, create GitHub release, and publish to npm
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm exec release-it ${{ inputs.increment }} --ci
+
+      # release-it creates the GitHub release using the default GITHUB_TOKEN,
+      # so the resulting "release: published" event does not trigger a new
+      # workflow run (GitHub Actions never triggers workflow runs for events
+      # raised by the default GITHUB_TOKEN, to avoid recursive runs). Publish
+      # here instead of relying on that event, which previously meant
+      # workflow_dispatch releases bumped the version but never published to
+      # npm.
+      - name: Update npm to a version supporting OIDC trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Publish
+        run: npm publish --access public
+
+  publish:
+    name: Publish to npm
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Update npm to a version supporting OIDC trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Publish
+        run: npm publish --access public
