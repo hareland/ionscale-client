@@ -16,6 +16,7 @@
     "publish": false
   },
   "hooks": {
-    "after:bump": "pnpm run build --if-present"
+    "after:bump": "pnpm run build --if-present",
+    "after:release": "bash ./scripts/npm-publish.sh"
   }
 }

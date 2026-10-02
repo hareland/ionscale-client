@@ -53,32 +53,24 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm exec release-it ${{ inputs.increment }} --ci
+      # `npm publish` is needed (instead of `pnpm publish`) for OIDC trusted
+      # publishing support, so make sure it's up to date before release-it's
+      # `after:release` hook (scripts/npm-publish.sh) invokes it.
+      - name: Update npm to a version supporting OIDC trusted publishing
+        run: npm install -g npm@latest
 
       # release-it creates the GitHub release using the default GITHUB_TOKEN,
       # so the resulting "release: published" event does not trigger a new
       # workflow run (GitHub Actions never triggers workflow runs for events
-      # raised by the default GITHUB_TOKEN, to avoid recursive runs). Publish
-      # here instead of relying on that event, which previously meant
+      # raised by the default GITHUB_TOKEN, to avoid recursive runs). The
+      # `after:release` hook (see .release-it.json) publishes to npm here
+      # instead of relying on that event, which previously meant
       # workflow_dispatch releases bumped the version but never published to
       # npm.
-      - name: Update npm to a version supporting OIDC trusted publishing
-        run: npm install -g npm@latest
-
-      # `npm publish` ignores `publishConfig` field overrides when run directly
-      # in the working directory, so `main`/`types`/`exports` would be published
-      # pointing at `src/*.ts` instead of the built `dist/*` files. `pnpm pack`
-      # does apply those overrides when generating the tarball, so pack first
-      # and have `npm publish` (needed for OIDC trusted publishing) publish that
-      # exact tarball.
-      - name: Pack
-        run: pnpm pack
-
-      - name: Publish
-        run: npm publish ionscale-client-*.tgz --access public
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm exec release-it ${{ inputs.increment }} --ci
 
   publish:
     name: Publish to npm
@@ -106,14 +98,5 @@ jobs:
       - name: Update npm to a version supporting OIDC trusted publishing
         run: npm install -g npm@latest
 
-      # `npm publish` ignores `publishConfig` field overrides when run directly
-      # in the working directory, so `main`/`types`/`exports` would be published
-      # pointing at `src/*.ts` instead of the built `dist/*` files. `pnpm pack`
-      # does apply those overrides when generating the tarball, so pack first
-      # and have `npm publish` (needed for OIDC trusted publishing) publish that
-      # exact tarball.
-      - name: Pack
-        run: pnpm pack
-
       - name: Publish
-        run: npm publish ionscale-client-*.tgz --access public
+        run: bash ./scripts/npm-publish.sh
