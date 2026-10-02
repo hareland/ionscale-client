@@ -16,17 +16,19 @@ on:
           - preminor
           - premajor
           - prerelease
-      dry_run:
-        description: "Dry run (simulate the release without tagging, publishing a GitHub release, or publishing to npm)"
-        required: false
-        type: boolean
-        default: false
   release:
     types: [published]
 
 permissions:
   contents: write
   id-token: write
+
+# npm publishing prefers OIDC trusted publishing (no secret needed), but that
+# requires the package to be registered with a matching trusted publisher on
+# npmjs.com (https://docs.npmjs.com/trusted-publishing), an account-side
+# setting this workflow cannot configure. Set the `NPM_TOKEN` repository
+# secret to an npm automation token to publish reliably until that's set up;
+# scripts/npm-publish.sh only falls back to OIDC when `NPM_TOKEN` is unset.
 
 jobs:
   version:
@@ -72,16 +74,11 @@ jobs:
       # instead of relying on that event, which previously meant
       # workflow_dispatch releases bumped the version but never published to
       # npm.
-      # Pass `--dry-run` when triggered with the `dry_run` input so the whole
-      # pipeline (including the `after:release` npm-publish hook) can be
-      # exercised safely: release-it only logs the git tag/push, GitHub
-      # release creation, and the npm-publish.sh invocation instead of
-      # actually running them. See
-      # https://github.com/release-it/release-it/blob/main/docs/dry-runs.md
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm exec release-it ${{ inputs.increment }} --ci ${{ inputs.dry_run && '--dry-run' || '' }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm exec release-it ${{ inputs.increment }} --ci
 
   publish:
     name: Publish to npm
@@ -110,4 +107,6 @@ jobs:
         run: npm install -g npm@latest
 
       - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: bash ./scripts/npm-publish.sh

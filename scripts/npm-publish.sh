@@ -14,17 +14,21 @@
 #
 # `actions/setup-node`'s `registry-url` input always writes a
 # `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}` line to the npmrc,
-# even when `NODE_AUTH_TOKEN` is never set (this project never sets it, since
-# it relies solely on OIDC trusted publishing). npm resolves the unset env
-# var reference to an empty token, which makes it think token auth is
-# configured (just missing a token) instead of falling back to OIDC, so
-# `npm publish` fails with a misleading 404 instead of exchanging the job's
-# OIDC token. Strip that `_authToken` entry here so npm actually attempts
-# OIDC auth. See https://github.com/actions/setup-node/issues/1551.
+# even when `NODE_AUTH_TOKEN` is never set. If a real npm automation token is
+# provided via the `NODE_AUTH_TOKEN` env var (see the `NPM_TOKEN` secret used
+# in .github/workflows/release.yml), npm resolves that reference to the
+# token and publishes with it directly - leave the line alone in that case.
+# Trusted publishing via OIDC additionally requires the package to be
+# registered with a matching trusted publisher on npmjs.com (an account-side
+# setting this script cannot configure, see
+# https://docs.npmjs.com/trusted-publishing), so only fall back to it (by
+# stripping the `_authToken` line so npm attempts OIDC instead of sending an
+# empty token) when no real token is configured.
+# See https://github.com/actions/setup-node/issues/1551.
 set -euo pipefail
 
 npmrc="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
-if [ -f "$npmrc" ]; then
+if [ -f "$npmrc" ] && [ -z "${NODE_AUTH_TOKEN:-}" ]; then
   sed -i.bak '/^\/\/registry\.npmjs\.org\/:_authToken=/d' "$npmrc"
   rm -f "$npmrc.bak"
 fi
