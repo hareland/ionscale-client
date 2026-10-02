@@ -68,11 +68,17 @@ jobs:
       - name: Update npm to a version supporting OIDC trusted publishing
         run: npm install -g npm@latest
 
-      - name: Build
-        run: pnpm run build
+      # `npm publish` ignores `publishConfig` field overrides when run directly
+      # in the working directory, so `main`/`types`/`exports` would be published
+      # pointing at `src/*.ts` instead of the built `dist/*` files. `pnpm pack`
+      # does apply those overrides when generating the tarball, so pack first
+      # and have `npm publish` (needed for OIDC trusted publishing) publish that
+      # exact tarball.
+      - name: Pack
+        run: pnpm pack
 
       - name: Publish
-        run: npm publish --access public
+        run: npm publish ionscale-client-*.tgz --access public
 
   publish:
     name: Publish to npm
@@ -97,11 +103,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build
-        run: pnpm run build
-
       - name: Update npm to a version supporting OIDC trusted publishing
         run: npm install -g npm@latest
 
+      # `npm publish` ignores `publishConfig` field overrides when run directly
+      # in the working directory, so `main`/`types`/`exports` would be published
+      # pointing at `src/*.ts` instead of the built `dist/*` files. `pnpm pack`
+      # does apply those overrides when generating the tarball, so pack first
+      # and have `npm publish` (needed for OIDC trusted publishing) publish that
+      # exact tarball.
+      - name: Pack
+        run: pnpm pack
+
       - name: Publish
-        run: npm publish --access public
+        run: npm publish ionscale-client-*.tgz --access public
