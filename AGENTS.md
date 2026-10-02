@@ -72,7 +72,7 @@ the registry). Requires npm CLI v11.5.1+ / Node 22.14+, which the `release` work
 1. Go to the package's page on [npmjs.com](https://www.npmjs.com) → **Settings** → **Trusted Publisher**.
 2. Add a new GitHub Actions trusted publisher with:
    - **Organization or user**: `hareland`
-   - **Repository**: `scrape-admin-standalone`
+   - **Repository**: `ionscale-client`
    - **Workflow filename**: `release.yml`
    - **Environment**: leave empty, unless a dedicated GitHub Actions environment is introduced for releases later
 3. Save. No npm token is required anywhere in this repo's CI configuration; `id-token: write` permission on the
