@@ -1,3 +1,8 @@
+# Publishes ionscale-client to npm using release-it.
+#
+# Triggered manually so a maintainer picks exactly what kind of version bump
+# to apply - see AGENTS.md for the full walkthrough (including npm Trusted
+# Publishing / OIDC setup).
 name: Release
 
 on:
@@ -16,18 +21,19 @@ on:
           - preminor
           - premajor
           - prerelease
-  release:
-    types: [published]
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 jobs:
-  version:
+  release:
     name: Bump version, create GitHub release, and publish to npm
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      # Needed to push the version bump commit/tag and create the GitHub release.
+      contents: write
+      # Needed to mint the OIDC token npm uses for Trusted Publishing (no npm token required).
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -51,6 +57,29 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
+      # release-it pushes the version commit and tag, then publishes to npm
+      # via its `after:release` hook. If that hook fails (e.g. npm Trusted
+      # Publishing isn't set up yet for a brand-new package), resume
+      # publishing the already-tagged version on the next run instead of
+      # trying to bump/tag/release again.
+      - name: Detect incomplete release
+        id: recovery
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          name="$(node -p "require('./package.json').name")"
+          tag="v$version"
+
+          if git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null &&
+             ! npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out tagged release
+        if: steps.recovery.outputs.tag != ''
+        env:
+          RELEASE_TAG: ${{ steps.recovery.outputs.tag }}
+        run: git checkout --detach "$RELEASE_TAG"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -60,50 +89,29 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       # `npm publish` is needed (instead of `pnpm publish`) for OIDC trusted
-      # publishing support, so make sure it's up to date before release-it's
-      # `after:release` hook (scripts/npm-publish.sh) invokes it.
+      # publishing support, so make sure it's up to date before invoking it.
       - name: Update npm to a version supporting OIDC trusted publishing
         run: npm install -g npm@latest
+
+      - name: Build package for recovery
+        if: steps.recovery.outputs.tag != ''
+        run: pnpm run build --if-present
+
+      - name: Resume npm publish
+        if: steps.recovery.outputs.tag != ''
+        env:
+          NPM_CONFIG_LOGLEVEL: verbose
+        run: bash ./scripts/npm-publish.sh
 
       # release-it creates the GitHub release using the default GITHUB_TOKEN,
       # so the resulting "release: published" event does not trigger a new
       # workflow run (GitHub Actions never triggers workflow runs for events
       # raised by the default GITHUB_TOKEN, to avoid recursive runs). The
       # `after:release` hook (see .release-it.json) publishes to npm here
-      # instead of relying on that event, which previously meant
-      # workflow_dispatch releases bumped the version but never published to
-      # npm.
+      # instead of relying on that event.
       - name: Release
+        if: steps.recovery.outputs.tag == ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_LOGLEVEL: verbose
         run: pnpm exec release-it ${{ inputs.increment }} --ci
-
-  publish:
-    name: Publish to npm
-    if: github.event_name == 'release'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.release.tag_name }}
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-
-      # `registry-url` intentionally omitted here too - see the matching
-      # comment in the `version` job above.
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Update npm to a version supporting OIDC trusted publishing
-        run: npm install -g npm@latest
-
-      - name: Publish
-        run: bash ./scripts/npm-publish.sh
