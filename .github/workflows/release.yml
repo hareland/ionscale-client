@@ -23,13 +23,6 @@ permissions:
   contents: write
   id-token: write
 
-# npm publishing prefers OIDC trusted publishing (no secret needed), but that
-# requires the package to be registered with a matching trusted publisher on
-# npmjs.com (https://docs.npmjs.com/trusted-publishing), an account-side
-# setting this workflow cannot configure. Set the `NPM_TOKEN` repository
-# secret to an npm automation token to publish reliably until that's set up;
-# scripts/npm-publish.sh only falls back to OIDC when `NPM_TOKEN` is unset.
-
 jobs:
   version:
     name: Bump version, create GitHub release, and publish to npm
@@ -45,12 +38,18 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
+      # `registry-url` is intentionally omitted: npm already defaults to
+      # registry.npmjs.org, and setting it makes actions/setup-node write an
+      # `.npmrc` with an unresolved `_authToken=${NODE_AUTH_TOKEN}`
+      # placeholder (even though no token is configured, since this relies
+      # solely on OIDC trusted publishing). That placeholder can make a
+      # failed OIDC exchange fall back to a confusing `404 Not Found` instead
+      # of surfacing the real auth error. See AGENTS.md.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
-          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -77,7 +76,6 @@ jobs:
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: pnpm exec release-it ${{ inputs.increment }} --ci
 
   publish:
@@ -93,12 +91,13 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
+      # `registry-url` intentionally omitted here too - see the matching
+      # comment in the `version` job above.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
-          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -107,6 +106,4 @@ jobs:
         run: npm install -g npm@latest
 
       - name: Publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: bash ./scripts/npm-publish.sh
