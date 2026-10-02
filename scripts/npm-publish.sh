@@ -15,4 +15,4 @@ tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
 
 pnpm pack --pack-destination "$tmp_dir"
-npm publish "$tmp_dir"/*.tgz --access public
+npm publish "$tmp_dir"/*.tgz --access public --loglevel verbose
