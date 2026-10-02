@@ -38,12 +38,18 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
+      # `registry-url` is intentionally omitted: npm already defaults to
+      # registry.npmjs.org, and setting it makes actions/setup-node write an
+      # `.npmrc` with an unresolved `_authToken=${NODE_AUTH_TOKEN}`
+      # placeholder (even though no token is configured, since this relies
+      # solely on OIDC trusted publishing). That placeholder can make a
+      # failed OIDC exchange fall back to a confusing `404 Not Found` instead
+      # of surfacing the real auth error. See AGENTS.md.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
-          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -85,12 +91,13 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
+      # `registry-url` intentionally omitted here too - see the matching
+      # comment in the `version` job above.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
-          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
